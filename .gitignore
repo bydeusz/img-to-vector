@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Werkmappen van de tool: de mappen zelf blijven, de inhoud niet
+input/*
+output/*
+!input/.gitkeep
+!output/.gitkeep

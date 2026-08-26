@@ -1,0 +1,17 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[packages]
+pillow = "~=12.3"
+potracer = "~=0.0.4"
+
+[dev-packages]
+
+[scripts]
+vectorize = "python -m img2vec"
+test = "python -m unittest discover -s tests -t ."
+
+[requires]
+python_version = "3.11"
