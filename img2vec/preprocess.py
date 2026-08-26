@@ -9,7 +9,6 @@ from PIL import Image, ImageOps
 DEFAULT_MIN_SIZE = 0
 OPAQUE_CUTOFF = 250
 MIN_TRANSPARENT_FRACTION = 0.05
-MID_GREY = 128
 CORNER_FRACTION = 0.05
 SMALLEST_CORNER = 2
 DIRECTLY_USABLE_MODES = ("L", "LA", "RGB", "RGBA")
@@ -40,7 +39,7 @@ def build_mask(image: Image.Image, *, invert: bool = False, min_size: int = DEFA
 
     shape = _shape_from_alpha(image)
     if shape is None:
-        shape = _shape_from_luminance(image)
+        shape = _shape_from_background(image)
     if invert:
         shape = ImageOps.invert(shape)
 
@@ -59,12 +58,16 @@ def _shape_from_alpha(image: Image.Image) -> Image.Image | None:
     return ImageOps.invert(alpha)
 
 
-def _shape_from_luminance(image: Image.Image) -> Image.Image:
-    """Read the artwork off the brightness, flipping it when the background is dark."""
-    grey = _flatten_onto_white(image).convert("L")
-    if _background_is_dark(grey):
-        return ImageOps.invert(grey)
-    return grey
+def _shape_from_background(image: Image.Image) -> Image.Image:
+    """Measure how far each pixel sits from the background colour, as dark ink on a light field.
+
+    Brightness alone cannot tell a mid-toned logo colour from its background, and a logo
+    made of several colours ends up half in and half out. The distance from the background
+    colour treats every colour that is not the background as artwork, whatever its brightness.
+    """
+    rgb = np.asarray(_flatten_onto_white(image).convert("RGB"), dtype=np.int16)
+    distance = np.abs(rgb - _corner_colour(rgb)).max(axis=2)
+    return Image.fromarray((255 - np.clip(distance, 0, 255)).astype(np.uint8))
 
 
 def _flatten_onto_white(image: Image.Image) -> Image.Image:
@@ -74,20 +77,19 @@ def _flatten_onto_white(image: Image.Image) -> Image.Image:
     return Image.alpha_composite(white, image.convert("RGBA"))
 
 
-def _background_is_dark(grey: Image.Image) -> bool:
-    """Judge the background by the four corners, where a logo is least likely to reach."""
-    pixels = np.asarray(grey, dtype=np.uint8)
-    across = max(SMALLEST_CORNER, round(grey.width * CORNER_FRACTION))
-    down = max(SMALLEST_CORNER, round(grey.height * CORNER_FRACTION))
+def _corner_colour(rgb: np.ndarray) -> np.ndarray:
+    """Take the background from the four corners, where a logo is least likely to reach."""
+    down = max(SMALLEST_CORNER, round(rgb.shape[0] * CORNER_FRACTION))
+    across = max(SMALLEST_CORNER, round(rgb.shape[1] * CORNER_FRACTION))
     corners = np.concatenate(
         [
-            pixels[:down, :across].ravel(),
-            pixels[:down, -across:].ravel(),
-            pixels[-down:, :across].ravel(),
-            pixels[-down:, -across:].ravel(),
+            rgb[:down, :across].reshape(-1, 3),
+            rgb[:down, -across:].reshape(-1, 3),
+            rgb[-down:, :across].reshape(-1, 3),
+            rgb[-down:, -across:].reshape(-1, 3),
         ]
     )
-    return float(np.median(corners)) < MID_GREY
+    return np.median(corners, axis=0)
 
 
 def _enlarge(shape: Image.Image, min_size: int) -> tuple[Image.Image, float]:

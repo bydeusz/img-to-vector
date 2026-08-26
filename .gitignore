@@ -222,3 +222,6 @@ input/*
 output/*
 !input/.gitkeep
 !output/.gitkeep
+
+# macOS
+.DS_Store

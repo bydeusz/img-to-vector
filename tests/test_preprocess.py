@@ -8,6 +8,9 @@ from img2vec.preprocess import build_mask, load_image
 
 SHAPE_CENTRE = (20, 20)
 BACKGROUND_CORNER = (2, 2)
+NAVY = (13, 13, 31)
+BLUE = (0, 0, 200)
+PURPLE = (167, 139, 218)
 
 
 def _canvas(mode, background, size=(40, 40)):
@@ -52,6 +55,22 @@ class BuildMaskTestCase(unittest.TestCase):
         image = _logo_on(_canvas("RGB", "black"), "white")
 
         self.assertShapeIsDark(build_mask(image, min_size=0))
+
+    def test_artwork_darker_than_mid_grey_still_counts_on_a_dark_background(self):
+        image = _logo_on(_canvas("RGB", NAVY), BLUE)
+
+        self.assertShapeIsDark(build_mask(image, min_size=0))
+
+    def test_colours_of_different_brightness_all_count_as_artwork(self):
+        image = _canvas("RGB", NAVY)
+        image.paste(PURPLE, (4, 4, 20, 36))
+        image.paste(BLUE, (20, 4, 36, 36))
+
+        mask = build_mask(image, min_size=0)
+
+        self.assertLess(_value_at(mask, (12, 20)), 128)
+        self.assertLess(_value_at(mask, (28, 20)), 128)
+        self.assertGreater(_value_at(mask, BACKGROUND_CORNER), 128)
 
     def test_a_nearly_opaque_alpha_channel_is_ignored(self):
         image = _logo_on(_canvas("RGBA", (255, 255, 255, 255)), (0, 0, 0, 255))
